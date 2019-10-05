@@ -1,0 +1,177 @@
+---
+title: "Translink_analysis"
+output: github_notebook
+---
+
+```{r packages}
+library(tidyverse)
+```
+
+
+```{r load data}
+bus <- read.csv("data/TSPR2018_Bus_AnnualIndicators_RouteYear.csv")
+View(bus)
+bus_season <- read_csv("data/TSPR2018_Bus_SeasonalIndicators_RouteDaySeasonTimeYear.csv", 
+    col_types = cols(Average_APC_Boardings_Per_Revenue_Hour = col_double(), 
+        Average_APC_Boardings_Per_Trip = col_double(), 
+        Average_Peak_Load_Factor_Percentage_EastNorth = col_double(), 
+        Average_Peak_Load_Factor_Percentage_WestSouth = col_double(), 
+        Average_Peak_Passenger_Load_EastNorth = col_double(), 
+        Average_Peak_Passenger_Load_WestSouth = col_double(), 
+        Average_Trips_Per_Clock_Hour_Per_Direction = col_double()))
+```
+
+```{r clean data}
+UBC_lines <- c("004", "009", "014", "025", "033", "041", "043", "044", "049", "084", "099", "480")
+UBC_times <- c("06:00-09:00", "09:00-15:00", "15:00-18:00", "18:00-21:00")
+UBC_data <- bus_season %>% 
+  filter(
+    line_no %in% UBC_lines, 
+    Time_Range %in% UBC_times,
+    Year == "2018",
+    sheet == "Fall",
+    DayType == "MF") %>% 
+  select(
+    line_no, 
+    Time_Range, 
+    "Average_Fullness_to_UBC" = Average_Peak_Load_Factor_Percentage_WestSouth,
+    "Average_Fullness_from_UBC" = Average_Peak_Load_Factor_Percentage_EastNorth)
+
+for (row in seq_along(UBC_data$Time_Range)) {
+  if (UBC_data$Time_Range[row] == "06:00-09:00") {
+    UBC_data$Time_Range[row] = 1
+  } else if (UBC_data$Time_Range[row] == "09:00-15:00") {
+    UBC_data$Time_Range[row] = 2
+  } else if (UBC_data$Time_Range[row] == "15:00-18:00") {
+    UBC_data$Time_Range[row] = 3
+  } else {UBC_data$Time_Range[row] = 4}
+}
+
+```
+
+```{r plots}
+#UBC Fullness
+UBC_avg <- UBC_data %>% 
+  gather("Type", "Value", -line_no, -Time_Range) %>% 
+  group_by(line_no) %>% 
+  summarize(Value = mean(Value))
+  
+ggplot(data = UBC_avg, aes(x = line_no, y = Value)) + 
+  geom_point(alpha = 0.5, color = "blue") +
+  ylim(20, 100) + 
+  labs(title = "Average Fullness for All Buses to/from UBC", x = "Bus Number", y = "Average Fullness (%)")
+
+#99 B-Line
+data_99 <- UBC_data %>% 
+  filter(line_no == "099") %>%
+  gather( "Type", "Value", -line_no, -Time_Range)
+
+ggplot(data = data_99, aes(x = as.numeric(Time_Range), y = Value, color = Type, linetype = Type, shape = Type)) + 
+  geom_line() +
+  geom_point() +
+  ylim(40, 125) + 
+  labs(title = "Average Fullness for the 99 Bus", x = "Time Range", y = "Average Fullness (%)") +
+  scale_color_manual("Direction", values = c("red", "blue"), label = c("From UBC", "To UBC")) +
+  scale_linetype_manual("Direction", values = c(1, 5), label = c("From UBC", "To UBC")) +
+  scale_shape_manual("Direction", values = c(16, 17), label = c("From UBC", "To UBC")) +
+  scale_x_discrete(limits = c(1,2,3,4), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+
+#49 B-Line
+data_49 <- UBC_data %>% 
+  filter(line_no == "049") %>%
+  gather( "Type", "Value", -line_no, -Time_Range)
+
+ggplot(data = data_49, aes(x = as.numeric(Time_Range), y = Value, color = Type, linetype = Type, shape = Type)) + 
+  geom_line() +
+  geom_point() +
+  ylim(40, 125) + 
+  labs(title = "Average Fullness for the 49 Bus", x = "Time Range", y = "Average Fullness (%)") +
+  scale_color_manual("Direction", values = c("red", "blue"), label = c("From UBC", "To UBC")) +
+  scale_linetype_manual("Direction", values = c(1, 5), label = c("From UBC", "To UBC")) +
+  scale_shape_manual("Direction", values = c(16, 17), label = c("From UBC", "To UBC")) +
+  scale_x_discrete(limits = c(1,2,3,4), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+```
+
+```{r plots}
+
+#480 Line
+data_480_num <- UBC_data %>% 
+  filter(line_no == "480") %>%
+  select(-Average_Fullness_to_UBC, -Average_Fullness_from_UBC) %>% 
+  gather( "Type", "Value", -line_no, -Time_Range)
+
+ggplot(data = data_480_num, aes(x = as.numeric(Time_Range), y = Value, color = Type, linetype = Type, shape = Type)) + 
+  geom_line() +
+  geom_point() +
+  ylim(0, 130) + 
+  labs(title = "Average Number of Passengers for the 480 Bus", x = "Time Range", y = "Average Peak Passengers") +
+  scale_color_manual("Direction", values = c("red", "blue"), label = c("From UBC", "To UBC")) +
+  scale_linetype_manual("Direction", values = c(1, 5), label = c("From UBC", "To UBC")) +
+  scale_shape_manual("Direction", values = c(16, 17), label = c("From UBC", "To UBC")) +
+  scale_x_discrete(limits = c(1,2,3,4), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+data_480_full <- UBC_data %>% 
+  filter(line_no == "480") %>%
+  select(-Average_Peak_Passengers_to_UBC, -Average_Peak_Passengers_from_UBC) %>% 
+  gather( "Type", "Value", -line_no, -Time_Range)
+
+ggplot(data = data_480_full, aes(x = as.numeric(Time_Range), y = Value, color = Type, linetype = Type, shape = Type)) + 
+  geom_line() +
+  geom_point() +
+  ylim(0, 130) + 
+  labs(title = "Average Fullness for the 480 Bus", x = "Time Range", y = "Average Fullness") +
+  scale_color_manual("Direction", values = c("red", "blue"), label = c("From UBC", "To UBC")) +
+  scale_linetype_manual("Direction", values = c(1, 5), label = c("From UBC", "To UBC")) +
+  scale_shape_manual("Direction", values = c(16, 17), label = c("From UBC", "To UBC")) +
+  scale_x_discrete(limits = c(1,2,3,4), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+```
+
+
+```{r}
+#To UBC
+data_full_to <- UBC_data %>% 
+  filter(line_no %in% UBC_lines) %>%
+  select(-Average_Fullness_from_UBC, -Average_Peak_Passengers_to_UBC, -Average_Peak_Passengers_from_UBC) %>% 
+  gather( "Type", "Value", -line_no, -Time_Range)
+
+ggplot(data = data_full_to, aes(x = line_no, y = Value, color = factor(Time_Range))) + 
+  geom_point(alpha = 0.5) +
+  ylim(0, 130) + 
+  labs(title = "Average Fullness for All Buses to UBC", x = "Bus Number", y = "Average Fullness") +
+  scale_color_manual("Time Range", values = factor(data_full_to$Time_Range), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+ggplot(data = data_full_to, aes(x = Time_Range, y = Value, label = line_no, color = factor(line_no))) + 
+  geom_text(size = 3) +
+  ylim(0, 130) + 
+  labs(title = "Average Fullness for All Buses", x = "Bus Number", y = "Average Fullness") +
+  scale_x_discrete(limits = c(1,2,3,4), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+```
+```{r}
+#From UBC
+data_full_from <- UBC_data %>% 
+  filter(line_no %in% UBC_lines) %>%
+  select(-Average_Fullness_to_UBC, -Average_Peak_Passengers_to_UBC, -Average_Peak_Passengers_from_UBC) %>% 
+  gather( "Type", "Value", -line_no, -Time_Range)
+
+ggplot(data = data_full_from, aes(x = line_no, y = Value, color = factor(Time_Range))) + 
+  geom_point(alpha = 0.5) +
+  ylim(0, 130) + 
+  labs(title = "Average Fullness for All Buses from UBC", x = "Bus Number", y = "Average Fullness") +
+  scale_color_manual("Time Range", values = factor(data_full_to$Time_Range), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+ggplot(data = data_full_to, aes(x = Time_Range, y = Value, label = line_no, color = factor(line_no))) + 
+  geom_text(size = 3) +
+  ylim(0, 130) + 
+  labs(title = "Average Fullness for All Buses", x = "Bus Number", y = "Average Fullness") +
+  scale_x_discrete(limits = c(1,2,3,4), labels = c("6:00-9:00", "9:00-15:00", "15:00-18:00", "18:00-21:00"))
+
+```
+
+
+
+
+
